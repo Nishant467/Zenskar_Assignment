@@ -2,16 +2,17 @@ import stripe
 import schedule
 import time
 import sqlite3
-
+from config import Config
+from queries import *
 # Initialize Stripe API
-stripe.api_key = 'sk_test_51P8z4XSElIyrQVH2QnPsaVc17uN7hmMzTDzQd7VA7ij7ROAVsyFXAum3IrxrvD27l6G3ThvPjTD7ugicTtvZ2KIM00UNGZAKzT'
+stripe.api_key = Config.STRIPE_API_KEY
 
 def poll_stripe_customers():
-    conn = sqlite3.connect('mydatabase.db')
+    conn = sqlite3.connect(Config.DATABASE)
     cursor = conn.cursor()
 
     # Get the last checked time from your database
-    cursor.execute("SELECT value FROM settings WHERE key = 'last_checked'")
+    cursor.execute(GET_LAST_CHECKED_TIME)
     last_checked = cursor.fetchone()[0]
 
     # Assuming last_checked is stored as a Unix timestamp
@@ -20,16 +21,12 @@ def poll_stripe_customers():
     for customer in customers.auto_paging_iter():
         print(customer)
         # Update local database with new info
-        cursor.execute("""
-            UPDATE customers
-            SET name = ?, email = ?
-            WHERE stripe_customer_id = ?
-        """, (customer.name, customer.email, customer.id))
+        cursor.execute(UPDATE_CUSTOMER_WITH_STRIPE_ID, (customer.name, customer.email, customer.id))
         conn.commit()
 
     # Update last checked time
     new_last_checked = int(time.time())
-    cursor.execute("UPDATE settings SET value = ? WHERE key = 'last_checked'", (str(new_last_checked),))
+    cursor.execute(UPDATE_SETTING, (str(new_last_checked),))
     conn.commit()
 
     cursor.close()

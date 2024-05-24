@@ -1,26 +1,29 @@
 # services.py
 import stripe
 from config import Config
-from database import create_connection
+from connection import create_connection
 from flask import jsonify
+from queries import *
+from config import Config
 stripe.api_key = Config.STRIPE_API_KEY
 
 def add_customer(name, email):
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO customers (name, email) VALUES (?, ?)", (name, email))
+    cursor.execute(ADD_CUSTOMER, (name, email))
     customer_id = cursor.lastrowid
     conn.commit()
     stripe_customer = stripe.Customer.create(name=name, email=email)
-    cursor.execute("UPDATE customers SET stripe_customer_id = ? WHERE id = ?", (stripe_customer.id, customer_id))
+    print(stripe_customer)
+    cursor.execute(SET_CUSTOMER_STRIPE_ID, (stripe_customer.id, customer_id))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Customer added", "id": customer_id}), 201
+    return jsonify({"message": "Customer added", "stripe_customer_id": stripe_customer.id , "id": customer_id}), 201
 
 def get_customer(user_id):
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, email FROM customers WHERE ID = ?", (user_id,))
+    cursor.execute(GET_CUSTOMER_FROM_ID, (user_id,))
     user = cursor.fetchone()
     conn.close()
     if user:
@@ -39,9 +42,9 @@ def get_all_customers():
 def update_customer(customer_id, name, email):
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE customers SET name = ?, email = ? WHERE id = ?", (name, email, customer_id))
+    cursor.execute(UDPATE_CUSTOMER, (name, email, customer_id))
     conn.commit()
-    stripe_customer_id = cursor.execute("SELECT stripe_customer_id FROM customers WHERE id = ?", (customer_id,)).fetchone()[0]
+    stripe_customer_id = cursor.execute(GET_CUSTOMER_FROM_STRIPE_ID, (customer_id,)).fetchone()[0]
     stripe.Customer.modify(stripe_customer_id, name=name, email=email)
     conn.close()
     return jsonify({"message": "Customer updated"}), 200
